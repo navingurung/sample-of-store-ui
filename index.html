@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SAMURAI TAX — VAT Refund Application</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<h2 class="sr-only">SAMURAI TAX VAT Refund — full prototype with Square and Smaregi POS integration.</h2>
+
+<div class="app">
+
+  <!-- Test Banner -->
+  <div class="tbanner" id="tb">
+    <span><i class="ti ti-alert-triangle" aria-hidden="true"></i> Test Environment Active</span>
+    <button onclick="document.getElementById('tb').style.display='none'">✕ Dismiss</button>
+  </div>
+
+  <!-- Header -->
+  <header class="hdr">
+    <div class="hdr-logo">
+      <div class="hdr-icon">
+        <i class="ti ti-receipt-tax" style="font-size:14px;color:#fff;" aria-hidden="true"></i>
+      </div>
+      <span class="hdr-title">SAMURAI TAX</span>
+      <span class="hdr-divider"></span>
+      <span class="hdr-sub">VAT Refund Application</span>
+    </div>
+    <div class="hdr-sub">Normal Test Store</div>
+  </header>
+
+  <!-- Body -->
+  <div class="body">
+    <aside class="sb" id="sb"></aside>
+    <main class="main" id="mc"></main>
+  </div>
+
+  <!-- Footer -->
+  <footer class="ftr">
+    <button class="bs" id="btnB" onclick="nav(-1)">
+      <i class="ti ti-arrow-left" style="font-size:12px;" aria-hidden="true"></i>Back
+    </button>
+    <button class="ftr-cancel">Cancel Application</button>
+    <button class="bp" id="btnN" onclick="nav(1)">
+      Continue<i class="ti ti-arrow-right" style="font-size:12px;" aria-hidden="true"></i>
+    </button>
+  </footer>
+
+</div>
+
+<script>
+/* ─── Data ─── */
+const STEPS = [
+  { l: 'Transaction',   s: 'Select POS source' },
+  { l: 'Order Info',    s: 'Purchase details' },
+  { l: 'Passport',      s: 'Traveler information' },
+  { l: 'Refund Method', s: 'Email verification' },
+  { l: 'Terms',         s: 'Agreement' },
+  { l: 'Review',        s: 'Confirm & submit' },
+];
+
+let cur = 0, pv = 'source', psrc = null, stx = null;
+
+const fmt = n => '¥' + n.toLocaleString();
+
+const SQ = [
+  { id: 'GHJ7-8K2M', amount: 15400, ex: 14000, tax: 1400, date: '2026-05-24 14:32', items: [{ name: 'Leather Bag', qty: 1, price: 8000, r: 10 }, { name: 'Silk Scarf', qty: 2, price: 3000, r: 10 }], card: 'Visa ****4521' },
+  { id: 'PQR2-9P4Q', amount: 8800,  ex: 8000,  tax: 800,  date: '2026-05-24 13:15', items: [{ name: 'T-Shirt (Limited Ed.)', qty: 1, price: 8000, r: 10 }], card: 'Mastercard ****2233' },
+  { id: 'YTN5-3R7S', amount: 32900, ex: 29910, tax: 2990, date: '2026-05-24 11:48', items: [{ name: 'Watch', qty: 1, price: 25000, r: 10 }, { name: 'Leather Belt', qty: 2, price: 2455, r: 10 }], card: 'Amex ****8877' },
+  { id: 'BVX1-1L5N', amount: 5500,  ex: 5000,  tax: 500,  date: '2026-05-24 10:20', items: [{ name: 'Keychain', qty: 2, price: 2500, r: 10 }], card: 'Visa ****9911' },
+];
+
+const SM = [
+  { id: 'R-00234', amount: 21780, ex: 19800, tax: 1980, date: '2026-05-24 14:55', items: [{ name: 'Wool Coat', qty: 1, price: 15000, r: 10 }, { name: 'Knit Sweater', qty: 1, price: 4800, r: 10 }], terminal: 'Register 1', cat: 'General Goods' },
+  { id: 'R-00233', amount: 1188,  ex: 1100,  tax: 88,   date: '2026-05-24 13:40', items: [{ name: 'Cosmetics Set', qty: 1, price: 1100, r: 8 }], terminal: 'Register 2', cat: 'Consumables' },
+  { id: 'R-00232', amount: 44000, ex: 40000, tax: 4000, date: '2026-05-24 12:20', items: [{ name: 'Handbag', qty: 1, price: 35000, r: 10 }, { name: 'Wallet', qty: 1, price: 5000, r: 10 }], terminal: 'Register 1', cat: 'General Goods' },
+  { id: 'R-00231', amount: 3300,  ex: 3000,  tax: 300,  date: '2026-05-24 11:05', items: [{ name: 'Accessories Set', qty: 3, price: 1000, r: 10 }], terminal: 'Register 3', cat: 'General Goods' },
+];
+
+/* ─── Sidebar ─── */
+function rSB() {
+  let h = `
+    <div class="sb-brand">
+      <div class="sb-brand-icon">
+        <i class="ti ti-receipt-tax" style="font-size:15px;color:#fff;" aria-hidden="true"></i>
+      </div>
+      <div>
+        <div class="sb-brand-title">SAMURAI TAX</div>
+        <div class="sb-brand-sub">VAT Refund Portal</div>
+      </div>
+    </div>
+    <div class="sb-label">Steps</div>`;
+
+  STEPS.forEach((s, i) => {
+    const st  = i < cur ? 'done' : i === cur ? 'active' : 'todo';
+    const ic  = i < cur ? '<i class="ti ti-check" style="font-size:11px;" aria-hidden="true"></i>' : (i + 1);
+    const sub = (i === 0 && cur === 0)
+      ? ({ source: 'Select POS source', list: psrc === 'square' ? 'Square transactions' : 'Smaregi receipts', preview: 'Review transaction' })[pv]
+      : s.s;
+
+    h += `
+      <div style="display:flex;gap:9px;cursor:pointer;${i > cur + 1 ? 'opacity:0.35;' : ''}" onclick="gTo(${i})">
+        <div style="display:flex;flex-direction:column;align-items:center;">
+          <div class="sc ${st}">${ic}</div>
+          ${i < STEPS.length - 1 ? '<div class="sl"></div>' : ''}
+        </div>
+        <div style="padding-top:1px;padding-bottom:8px;">
+          <div style="font-size:12px;font-weight:500;color:${st === 'active' ? '#fff' : st === 'done' ? 'rgba(255,255,255,0.65)' : 'rgba(255,255,255,0.28)'};">${s.l}</div>
+          <div style="font-size:10px;color:${st === 'active' ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.22)'};">${sub}</div>
+        </div>
+      </div>`;
+  });
+
+  h += `
+    <div class="sb-footer">
+      <button class="sb-cancel">
+        <i class="ti ti-x" style="font-size:12px;" aria-hidden="true"></i>Cancel Application
+      </button>
+    </div>`;
+
+  document.getElementById('sb').innerHTML = h;
+}
+
+/* ─── Navigation ─── */
+function gTo(i) {
+  if (i > cur + 1) return;
+  cur = i;
+  if (cur === 0) pv = 'source';
+  rSB(); RENDERS[cur](); uNav();
+  document.getElementById('mc').scrollTop = 0;
+}
+
+function nav(d) {
+  if (cur === 0) {
+    if (d === 1) {
+      if (pv === 'source') {
+        if (psrc === 'manual') { cur = 1; rSB(); RENDERS[1](); uNav(); }
+        else if (psrc)         { pv = 'list'; stx = null; rSB(); r0(); uNav(); }
+      } else if (pv === 'list' && stx) {
+        pv = 'preview'; rSB(); r0(); uNav();
+      } else if (pv === 'preview') {
+        cur = 1; rSB(); RENDERS[1](); uNav();
+      }
+    } else {
+      if (pv === 'list')    { pv = 'source'; rSB(); r0(); uNav(); }
+      else if (pv === 'preview') { pv = 'list'; rSB(); r0(); uNav(); }
+    }
+    return;
+  }
+  const n = cur + d;
+  if (n < 0 || n >= STEPS.length) return;
+  cur = n; rSB(); RENDERS[cur](); uNav();
+  document.getElementById('mc').scrollTop = 0;
+}
+
+function uNav() {
+  const B = document.getElementById('btnB');
+  const N = document.getElementById('btnN');
+  B.disabled = (cur === 0 && pv === 'source');
+  B.style.opacity = B.disabled ? '0.35' : '1';
+
+  let lbl = 'Continue', ok = true;
+  if (cur === 0) {
+    if      (pv === 'source')  { lbl = psrc === 'manual' ? 'Enter Manually' : psrc ? 'View Transactions →' : 'Continue'; ok = !!psrc; }
+    else if (pv === 'list')    { lbl = stx ? 'Review Selection →' : 'Select a Transaction'; ok = !!stx; }
+    else if (pv === 'preview') { lbl = 'Start Application →'; }
+  } else if (cur === STEPS.length - 1) {
+    lbl = 'Submit Application';
+  }
+
+  N.innerHTML = lbl + '<i class="ti ti-arrow-right" style="font-size:12px;" aria-hidden="true"></i>';
+  N.disabled = !ok;
+  N.style.opacity = ok ? '1' : '0.4';
+  N.style.cursor  = ok ? 'pointer' : 'default';
+}
+
+/* ─── Step 0: Source ─── */
+function r0() { if (pv === 'source') r0S(); else if (pv === 'list') r0L(); else r0P(); }
+
+function r0S() {
+  document.getElementById('mc').innerHTML = `
+    <div style="margin-bottom:18px;">
+      <div style="font-size:15px;font-weight:500;margin-bottom:4px;">Select Transaction Source</div>
+      <div style="font-size:13px;color:var(--color-text-secondary);">Import order data automatically from your POS system, or enter details manually.</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px;">
+      <div class="pcard ${psrc === 'square'   ? 'sel' : ''}" onclick="selS('square')">
+        <div class="pcard-icon" style="background:#F0F9FF;"><i class="ti ti-credit-card" style="font-size:24px;color:#0284C7;" aria-hidden="true"></i></div>
+        <div class="pcard-title">Square</div>
+        <div class="pcard-desc">Import from Square POS. Search by ID or fetch latest transaction.</div>
+        ${psrc === 'square'   ? '<div class="pcard-check"><i class="ti ti-check" style="font-size:11px;color:#fff;" aria-hidden="true"></i></div>' : ''}
+      </div>
+      <div class="pcard ${psrc === 'smaregi'  ? 'sel' : ''}" onclick="selS('smaregi')">
+        <div class="pcard-icon" style="background:#F0FDF4;"><i class="ti ti-building-store" style="font-size:24px;color:#16A34A;" aria-hidden="true"></i></div>
+        <div class="pcard-title">Smaregi</div>
+        <div class="pcard-desc">Import from Smaregi receipts. Search by receipt number or fetch latest.</div>
+        ${psrc === 'smaregi'  ? '<div class="pcard-check"><i class="ti ti-check" style="font-size:11px;color:#fff;" aria-hidden="true"></i></div>' : ''}
+      </div>
+      <div class="pcard ${psrc === 'manual'   ? 'sel' : ''}" onclick="selS('manual')">
+        <div class="pcard-icon" style="background:#F8F4FF;"><i class="ti ti-pencil" style="font-size:24px;color:#7C3AED;" aria-hidden="true"></i></div>
+        <div class="pcard-title">Manual Entry</div>
+        <div class="pcard-desc">Enter all order details manually. Use without a POS integration.</div>
+        ${psrc === 'manual'   ? '<div class="pcard-check"><i class="ti ti-check" style="font-size:11px;color:#fff;" aria-hidden="true"></i></div>' : ''}
+      </div>
+    </div>
+    <div class="callout-info">
+      <i class="ti ti-info-circle" style="font-size:15px;color:#0284C7;flex-shrink:0;margin-top:1px;" aria-hidden="true"></i>
+      <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.6;">
+        POS integrations import <strong style="color:var(--color-text-primary);">order totals and item details only</strong>.
+        Passport information and refund method are always entered separately to protect customer privacy.
+      </div>
+    </div>`;
+  uNav();
+}
+
+function selS(s) { psrc = s; r0S(); uNav(); }
+
+/* ─── Step 0: Transaction list ─── */
+function txRow(tx, sq) {
+  const sel = stx && stx.id === tx.id;
+  return `
+    <div class="tx ${sel ? 'sel' : ''}" onclick="selTx('${tx.id}')">
+      <div style="width:36px;height:36px;border-radius:8px;background:${sel ? 'var(--red)' : 'var(--color-bg-secondary)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <i class="ti ti-receipt" style="font-size:17px;color:${sel ? '#fff' : 'var(--color-text-secondary)'};" aria-hidden="true"></i>
+      </div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+          <span style="font-size:12px;font-weight:500;font-family:var(--font-mono);">${tx.id}</span>
+          <span class="bdg ok">Completed</span>
+          ${!sq ? `<span class="bdg ${tx.cat === 'Consumables' ? 'cons' : 'gen'}">${tx.cat}</span>` : ''}
+        </div>
+        <div style="font-size:11px;color:var(--color-text-secondary);">
+          ${tx.date} · ${tx.items.length} item${tx.items.length > 1 ? 's' : ''} · ${sq ? tx.card : tx.terminal}
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-size:14px;font-weight:600;color:${sel ? 'var(--red)' : 'var(--color-text-primary)'};">${fmt(tx.amount)}</div>
+        <div style="font-size:11px;color:var(--color-text-secondary);">Tax: ${fmt(tx.tax)}</div>
+      </div>
+    </div>`;
+}
+
+function r0L() {
+  const sq  = psrc === 'square';
+  const list = sq ? SQ : SM;
+  const clr  = sq ? '#0284C7' : '#16A34A';
+  const ico  = sq ? 'ti-credit-card' : 'ti-building-store';
+  const bg   = sq ? '#F0F9FF' : '#F0FDF4';
+  const bdr  = sq ? '#BAE6FD' : '#BBF7D0';
+
+  document.getElementById('mc').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:34px;height:34px;border-radius:8px;background:${bg};display:flex;align-items:center;justify-content:center;">
+          <i class="ti ${ico}" style="font-size:18px;color:${clr};" aria-hidden="true"></i>
+        </div>
+        <div>
+          <div style="font-size:14px;font-weight:500;">${sq ? 'Square' : 'Smaregi'} Transactions</div>
+          <div style="font-size:11px;color:var(--color-text-secondary);">Today — May 24, 2026</div>
+        </div>
+      </div>
+      <button onclick="doFetch()" style="display:inline-flex;align-items:center;gap:6px;padding:8px 13px;background:${bg};border:0.5px solid ${bdr};border-radius:6px;font-size:12px;cursor:pointer;color:${clr};font-weight:500;">
+        <i class="ti ti-refresh" style="font-size:13px;" aria-hidden="true"></i>Fetch Latest
+      </button>
+    </div>
+    <div style="position:relative;margin-bottom:12px;">
+      <i class="ti ti-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:14px;color:var(--color-text-secondary);" aria-hidden="true"></i>
+      <input id="txs" type="text"
+        placeholder="Search by ${sq ? 'transaction ID' : 'receipt number'}…"
+        oninput="fTx(this.value)"
+        style="width:100%;padding:8px 10px 8px 32px;border:0.5px solid var(--color-border-secondary);border-radius:6px;font-size:12px;background:var(--color-bg-primary);color:var(--color-text-primary);">
+    </div>
+    <div id="txl">${list.map(t => txRow(t, sq)).join('')}</div>`;
+}
+
+function selTx(id) { const l = psrc === 'square' ? SQ : SM; stx = l.find(t => t.id === id); r0L(); uNav(); }
+function doFetch()  { stx = (psrc === 'square' ? SQ : SM)[0]; r0L(); uNav(); }
+function fTx(v) {
+  const sq = psrc === 'square';
+  const l  = (sq ? SQ : SM).filter(t => t.id.toLowerCase().includes(v.toLowerCase()));
+  document.getElementById('txl').innerHTML = l.map(t => txRow(t, sq)).join('') ||
+    '<div style="text-align:center;padding:24px;color:var(--color-text-secondary);font-size:13px;">No transactions found</div>';
+}
+
+/* ─── Step 0: Preview ─── */
+function r0P() {
+  const tx = stx, sq = psrc === 'square';
+  document.getElementById('mc').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div>
+        <div style="font-size:15px;font-weight:500;margin-bottom:3px;">Review Transaction</div>
+        <div style="font-size:12px;color:var(--color-text-secondary);">Confirm this is the correct transaction before starting the application.</div>
+      </div>
+      <button onclick="pv='list';rSB();r0();uNav();" style="font-size:12px;color:var(--color-text-secondary);background:none;border:0.5px solid var(--color-border-secondary);border-radius:6px;padding:5px 11px;cursor:pointer;">← Change</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div>
+        <div class="scard">
+          <div style="font-size:10px;font-weight:600;color:var(--color-text-secondary);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.06em;">Transaction Details</div>
+          <div class="row"><span class="l">Source</span><span style="font-weight:500;">${sq ? 'Square' : 'Smaregi'}</span></div>
+          <div class="row"><span class="l">ID</span><span style="font-family:var(--font-mono);font-size:11px;">${tx.id}</span></div>
+          <div class="row"><span class="l">Date & Time</span><span>${tx.date}</span></div>
+          <div class="row"><span class="l">${sq ? 'Payment' : 'Terminal'}</span><span>${sq ? tx.card : tx.terminal}</span></div>
+          <div class="row"><span class="l">Status</span><span class="bdg ok">Completed</span></div>
+        </div>
+        <div class="scard">
+          <div style="font-size:10px;font-weight:600;color:var(--color-text-secondary);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.06em;">Order Totals</div>
+          <div class="row"><span class="l">Subtotal (excl. tax)</span><span>${fmt(tx.ex)}</span></div>
+          <div class="row"><span class="l">Consumption Tax</span><span>${fmt(tx.tax)}</span></div>
+          <div class="divider"></div>
+          <div class="row"><span style="font-weight:500;">Total Paid</span><span style="font-weight:700;font-size:16px;color:var(--red);">${fmt(tx.amount)}</span></div>
+        </div>
+      </div>
+      <div class="scard" style="height:fit-content;">
+        <div style="font-size:10px;font-weight:600;color:var(--color-text-secondary);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.06em;">Items (${tx.items.length})</div>
+        ${tx.items.map(item => `
+          <div style="padding:8px 0;border-bottom:0.5px solid var(--color-border-tertiary);">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;">
+              <span style="font-size:13px;font-weight:500;">${item.name}</span>
+              <span style="font-size:13px;">${fmt(item.price * item.qty)}</span>
+            </div>
+            <div style="font-size:11px;color:var(--color-text-secondary);">Qty: ${item.qty} · ¥${item.price.toLocaleString()} each · ${item.r}% tax</div>
+          </div>`).join('')}
+        <div class="callout-success">
+          <div style="font-size:11px;font-weight:500;color:var(--red);margin-bottom:2px;">
+            <i class="ti ti-check-circle" style="font-size:13px;vertical-align:-2px;margin-right:4px;" aria-hidden="true"></i>Ready to import
+          </div>
+          <div style="font-size:11px;color:#7F1D1D;line-height:1.5;">Order data will auto-fill Step 1. You can edit any field after import.</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+/* ─── Step 1: Order Info ─── */
+function r1() {
+  document.getElementById('mc').innerHTML = `
+    ${stx ? `
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--red-light);border:0.5px solid var(--red-mid);border-radius:6px;margin-bottom:12px;font-size:12px;color:#7F1D1D;">
+        <i class="ti ti-plug-connected" style="font-size:14px;color:var(--red);flex-shrink:0;" aria-hidden="true"></i>
+        <span>Auto-filled from <strong>${psrc === 'square' ? 'Square' : 'Smaregi'}</strong> — transaction <strong>${stx.id}</strong>. Edit any field if needed.</span>
+      </div>` : ''}
+    <div class="sec"><i class="ti ti-shopping-cart" aria-hidden="true"></i>Order Information</div>
+    <div class="fg" style="margin-bottom:12px;">
+      <div class="fld"><label>Store Name</label><input value="Normal Test Store" readonly style="background:var(--color-bg-secondary);color:var(--color-text-secondary);"></div>
+      <div class="fld"><label>Purchase Date *</label><input type="date" value="2026-05-24"></div>
+      <div class="fld s2"><label>Order ID / Receipt No. *</label><input value="${stx ? stx.id : ''}" placeholder="e.g. REC-20260524-001"></div>
+    </div>
+    <div class="sec"><i class="ti ti-package" aria-hidden="true"></i>Item Breakdown</div>
+    ${(stx ? stx.items : [{ name: '', qty: 1, price: 0, r: 10 }]).map((item, i) => `
+      <div class="pc">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <span style="font-size:11px;font-weight:500;color:var(--color-text-secondary);">Item ${i + 1}${stx ? ' — imported' : ''}</span>
+          <button style="background:none;border:none;color:#EF4444;cursor:pointer;font-size:11px;">Remove</button>
+        </div>
+        <div class="fg3" style="gap:8px;">
+          <div class="fld"><label>Category *</label><select><option>General Goods</option><option>Consumables</option></select></div>
+          <div class="fld"><label>Item Name *</label><input value="${item.name}" placeholder="Item name"></div>
+          <div class="fld"><label>Qty *</label><input type="number" value="${item.qty}" min="1"></div>
+          <div class="fld"><label>Tax Rate *</label><select><option value="10" ${item.r == 10 ? 'selected' : ''}>10%</option><option value="8" ${item.r == 8 ? 'selected' : ''}>8%</option><option value="0">0%</option></select></div>
+          <div class="fld"><label>Price (excl. tax) *</label><input type="number" value="${item.price || ''}"></div>
+          <div class="fld"><label>Price (incl. tax) *</label><input type="number" value="${item.price ? Math.round(item.price * (1 + item.r / 100)) : ''}"></div>
+        </div>
+      </div>`).join('')}
+    <button style="display:flex;align-items:center;gap:6px;background:none;border:0.5px dashed var(--color-border-secondary);border-radius:6px;padding:8px 14px;cursor:pointer;color:var(--red);font-size:12px;width:100%;justify-content:center;margin-bottom:12px;">
+      <i class="ti ti-plus" aria-hidden="true"></i>Add Item
+    </button>
+    <div style="background:var(--color-bg-secondary);border-radius:6px;padding:10px 14px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;"><span style="color:var(--color-text-secondary);">General Goods Total</span><span>${stx ? fmt(stx.ex) : '¥0'}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;"><span style="color:var(--color-text-secondary);">Consumables Total</span><span>¥0</span></div>
+      <div class="divider"></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;"><span style="font-weight:500;">Subtotal (excl. tax)</span><span style="font-weight:500;">${stx ? fmt(stx.ex) : '¥0'}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;"><span style="color:var(--color-text-secondary);">Consumption Tax</span><span>${stx ? fmt(stx.tax) : '¥0'}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;font-weight:600;color:var(--red);"><span>Total Paid</span><span>${stx ? fmt(stx.amount) : '¥0'}</span></div>
+    </div>`;
+}
+
+/* ─── Step 2: Passport ─── */
+function r2() {
+  document.getElementById('mc').innerHTML = `
+    <div class="sec"><i class="ti ti-id" aria-hidden="true"></i>Passport Information</div>
+    <div class="fg" style="margin-bottom:12px;">
+      <button style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;background:var(--navy);color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500;width:100%;">
+        <i class="ti ti-scan" style="font-size:16px;" aria-hidden="true"></i>Scan Passport
+      </button>
+      <button style="display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;background:var(--color-bg-secondary);border:0.5px solid var(--color-border-secondary);border-radius:6px;font-size:13px;cursor:pointer;font-weight:500;width:100%;color:var(--color-text-primary);">
+        <i class="ti ti-qrcode" style="font-size:16px;" aria-hidden="true"></i>Visit Japan Web QR
+      </button>
+    </div>
+    <div style="text-align:center;font-size:11px;color:var(--color-text-secondary);margin:-4px 0 12px;">or enter manually below</div>
+    <div class="fg" style="margin-bottom:12px;">
+      <div class="fld"><label>Given Name *</label><input placeholder="TARO"></div>
+      <div class="fld"><label>Surname *</label><input placeholder="YAMADA"></div>
+      <div class="fld"><label>Nationality *</label><select><option value="">Select…</option><option>Japan</option><option>USA</option><option>China</option><option>Korea</option><option>France</option><option>UK</option><option>Australia</option></select></div>
+      <div class="fld"><label>Date of Birth *</label><input type="date"></div>
+      <div class="fld"><label>Residency Status *</label><select><option>Passport Holder</option><option>Tourist Visa</option><option>Business Visa</option></select></div>
+      <div class="fld"><label>Passport Number *</label><input placeholder="TK1234567"></div>
+      <div class="fld"><label>Gender *</label><select><option value="">Select…</option><option>Male</option><option>Female</option><option>Other</option></select></div>
+      <div class="fld"><label>Issuing Country *</label><select><option value="">Select…</option><option>Japan</option><option>USA</option><option>China</option></select></div>
+      <div class="fld"><label>Passport Expiry *</label><input type="date"></div>
+      <div class="fld"><label>Passport Issue Date *</label><input type="date"></div>
+    </div>
+    <div class="sec"><i class="ti ti-plane-arrival" aria-hidden="true"></i>Visa Information</div>
+    <div class="fg">
+      <div class="fld"><label>Visa Type *</label><select><option value="">Select…</option><option>Short-term Stay</option><option>Tourist</option></select></div>
+      <div class="fld"><label>Entry Date *</label><input type="date"></div>
+    </div>`;
+}
+
+/* ─── Step 3: Refund Method ─── */
+function r3() {
+  document.getElementById('mc').innerHTML = `
+    <div class="sec"><i class="ti ti-mail" aria-hidden="true"></i>Refund Method</div>
+    <p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:18px;line-height:1.6;max-width:460px;">
+      After your tax refund is approved, we'll send an email with a link to securely enter your bank account or card details.
+      No sensitive financial information is entered in-store.
+    </p>
+    <div style="max-width:420px;">
+      <div class="fld" style="margin-bottom:12px;"><label>Customer Email Address *</label><input type="email" placeholder="customer@example.com"></div>
+      <button style="display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;background:var(--navy);color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500;width:100%;">
+        <i class="ti ti-send" style="font-size:14px;" aria-hidden="true"></i>Send Verification Email
+      </button>
+    </div>
+    <div style="margin-top:16px;padding:12px;background:var(--color-bg-secondary);border-radius:6px;max-width:420px;display:flex;gap:9px;">
+      <i class="ti ti-shield-check" style="font-size:16px;color:#16A34A;flex-shrink:0;margin-top:1px;" aria-hidden="true"></i>
+      <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.6;">
+        Customer privacy is protected — bank account, card details, and other sensitive refund information are entered
+        directly by the customer through a secure link, never at the store terminal.
+      </div>
+    </div>`;
+}
+
+/* ─── Step 4: Terms ─── */
+function r4() {
+  document.getElementById('mc').innerHTML = `
+    <div class="sec"><i class="ti ti-file-text" aria-hidden="true"></i>Privacy Policy & Terms of Service</div>
+    <div style="display:flex;gap:2px;margin-bottom:-1px;">
+      <div class="tb on">日本語</div>
+      <div class="tb">ENGLISH</div>
+    </div>
+    <div class="pb">
+      <strong style="font-size:12px;color:var(--color-text-primary);">Personal Information Management</strong>
+      <p style="margin:5px 0 10px;">This service takes appropriate security management measures to keep personal information accurate and up-to-date, and to prevent unauthorized access, leakage, falsification, loss or damage.</p>
+      <strong style="font-size:12px;color:var(--color-text-primary);">Optional Provision of Personal Information</strong>
+      <p style="margin:5px 0 10px;">When we receive personal information from customers, we will respond promptly based on laws and regulations in the event of requests for correction, deletion, disclosure, or suspension of use.</p>
+      <strong style="font-size:12px;color:var(--color-text-primary);">Changes to Privacy Policy</strong>
+      <p style="margin:5px 0 10px;">This service may revise this privacy policy as necessary. In the event of revision, it will take effect after being posted on this service.</p>
+      <p style="font-size:11px;color:var(--color-text-secondary);">Established: October 1, 2023 · Last revised: March 27, 2026 · TAIMATSU Co., Ltd.</p>
+      <p style="margin:5px 0 10px;">This service takes appropriate security management measures to keep personal information accurate and up-to-date, and to prevent unauthorized access, leakage, falsification, loss or damage.</p>
+      <strong style="font-size:12px;color:var(--color-text-primary);">Optional Provision of Personal Information</strong>
+      <p style="margin:5px 0 10px;">When we receive personal information from customers, we will respond promptly based on laws and regulations in the event of requests for correction, deletion, disclosure, or suspension of use.</p>
+      <strong style="font-size:12px;color:var(--color-text-primary);">Changes to Privacy Policy</strong>
+      <p style="margin:5px 0 10px;">This service may revise this privacy policy as necessary. In the event of revision, it will take effect after being posted on this service.</p>
+      <p style="font-size:11px;color:var(--color-text-secondary);">Established: October 1, 2023 · Last revised: March 27, 2026 · TAIMATSU Co., Ltd.</p>
+      <p style="margin:5px 0 10px;">This service takes appropriate security management measures to keep personal information accurate and up-to-date, and to prevent unauthorized access, leakage, falsification, loss or damage.</p>
+      <strong style="font-size:12px;color:var(--color-text-primary);">Optional Provision of Personal Information</strong>
+      <p style="margin:5px 0 10px;">When we receive personal information from customers, we will respond promptly based on laws and regulations in the event of requests for correction, deletion, disclosure, or suspension of use.</p>
+      <strong style="font-size:12px;color:var(--color-text-primary);">Changes to Privacy Policy</strong>
+      <p style="margin:5px 0 10px;">This service may revise this privacy policy as necessary. In the event of revision, it will take effect after being posted on this service.</p>
+      <p style="font-size:11px;color:var(--color-text-secondary);">Established: October 1, 2023 · Last revised: March 27, 2026 · TAIMATSU Co., Ltd.</p>
+      <p style="margin:5px 0 10px;">This service takes appropriate security management measures to keep personal information accurate and up-to-date, and to prevent unauthorized access, leakage, falsification, loss or damage.</p>
+      <strong style="font-size:12px;color:var(--color-text-primary);">Optional Provision of Personal Information</strong>
+      <p style="margin:5px 0 10px;">When we receive personal information from customers, we will respond promptly based on laws and regulations in the event of requests for correction, deletion, disclosure, or suspension of use.</p>
+      <strong style="font-size:12px;color:var(--color-text-primary);">Changes to Privacy Policy</strong>
+      <p style="margin:5px 0 10px;">This service may revise this privacy policy as necessary. In the event of revision, it will take effect after being posted on this service.</p>
+      <p style="font-size:11px;color:var(--color-text-secondary);">Established: October 1, 2023 · Last revised: March 27, 2026 · TAIMATSU Co., Ltd.</p>
+      <p style="margin:5px 0 10px;">This service takes appropriate security management measures to keep personal information accurate and up-to-date, and to prevent unauthorized access, leakage, falsification, loss or damage.</p>
+      <strong style="font-size:12px;color:var(--color-text-primary);">Optional Provision of Personal Information</strong>
+      <p style="margin:5px 0 10px;">When we receive personal information from customers, we will respond promptly based on laws and regulations in the event of requests for correction, deletion, disclosure, or suspension of use.</p>
+      <strong style="font-size:12px;color:var(--color-text-primary);">Changes to Privacy Policy</strong>
+      <p style="margin:5px 0 10px;">This service may revise this privacy policy as necessary. In the event of revision, it will take effect after being posted on this service.</p>
+      <p style="font-size:11px;color:var(--color-text-secondary);">Established: October 1, 2023 · Last revised: March 27, 2026 · TAIMATSU Co., Ltd.</p>
+      <p style="margin:5px 0 10px;">This service takes appropriate security management measures to keep personal information accurate and up-to-date, and to prevent unauthorized access, leakage, falsification, loss or damage.</p>
+      <strong style="font-size:12px;color:var(--color-text-primary);">Optional Provision of Personal Information</strong>
+      <p style="margin:5px 0 10px;">When we receive personal information from customers, we will respond promptly based on laws and regulations in the event of requests for correction, deletion, disclosure, or suspension of use.</p>
+      <strong style="font-size:12px;color:var(--color-text-primary);">Changes to Privacy Policy</strong>
+      <p style="margin:5px 0 10px;">This service may revise this privacy policy as necessary. In the event of revision, it will take effect after being posted on this service.</p>
+      <p style="font-size:11px;color:var(--color-text-secondary);">Established: October 1, 2023 · Last revised: March 27, 2026 · TAIMATSU Co., Ltd.</p>
+      <p style="margin:5px 0 10px;">This service takes appropriate security management measures to keep personal information accurate and up-to-date, and to prevent unauthorized access, leakage, falsification, loss or damage.</p>
+      <strong style="font-size:12px;color:var(--color-text-primary);">Optional Provision of Personal Information</strong>
+      <p style="margin:5px 0 10px;">When we receive personal information from customers, we will respond promptly based on laws and regulations in the event of requests for correction, deletion, disclosure, or suspension of use.</p>
+      <strong style="font-size:12px;color:var(--color-text-primary);">Changes to Privacy Policy</strong>
+      <p style="margin:5px 0 10px;">This service may revise this privacy policy as necessary. In the event of revision, it will take effect after being posted on this service.</p>
+      <p style="font-size:11px;color:var(--color-text-secondary);">Established: October 1, 2023 · Last revised: March 27, 2026 · TAIMATSU Co., Ltd.</p>
+      <p style="margin:5px 0 10px;">This service takes appropriate security management measures to keep personal information accurate and up-to-date, and to prevent unauthorized access, leakage, falsification, loss or damage.</p>
+      <strong style="font-size:12px;color:var(--color-text-primary);">Optional Provision of Personal Information</strong>
+      <p style="margin:5px 0 10px;">When we receive personal information from customers, we will respond promptly based on laws and regulations in the event of requests for correction, deletion, disclosure, or suspension of use.</p>
+      <strong style="font-size:12px;color:var(--color-text-primary);">Changes to Privacy Policy</strong>
+      <p style="margin:5px 0 10px;">This service may revise this privacy policy as necessary. In the event of revision, it will take effect after being posted on this service.</p>
+      <p style="font-size:11px;color:var(--color-text-secondary);">Established: October 1, 2023 · Last revised: March 27, 2026 · TAIMATSU Co., Ltd.</p>
+      <p style="margin:5px 0 10px;">This service takes appropriate security management measures to keep personal information accurate and up-to-date, and to prevent unauthorized access, leakage, falsification, loss or damage.</p>
+      <strong style="font-size:12px;color:var(--color-text-primary);">Optional Provision of Personal Information</strong>
+      <p style="margin:5px 0 10px;">When we receive personal information from customers, we will respond promptly based on laws and regulations in the event of requests for correction, deletion, disclosure, or suspension of use.</p>
+      <strong style="font-size:12px;color:var(--color-text-primary);">Changes to Privacy Policy</strong>
+      <p style="margin:5px 0 10px;">This service may revise this privacy policy as necessary. In the event of revision, it will take effect after being posted on this service.</p>
+      <p style="font-size:11px;color:var(--color-text-secondary);">Established: October 1, 2023 · Last revised: March 27, 2026 · TAIMATSU Co., Ltd.</p>
+      <p style="margin:5px 0 10px;">This service takes appropriate security management measures to keep personal information accurate and up-to-date, and to prevent unauthorized access, leakage, falsification, loss or damage.</p>
+      <strong style="font-size:12px;color:var(--color-text-primary);">Optional Provision of Personal Information</strong>
+      <p style="margin:5px 0 10px;">When we receive personal information from customers, we will respond promptly based on laws and regulations in the event of requests for correction, deletion, disclosure, or suspension of use.</p>
+      <strong style="font-size:12px;color:var(--color-text-primary);">Changes to Privacy Policy</strong>
+      <p style="margin:5px 0 10px;">This service may revise this privacy policy as necessary. In the event of revision, it will take effect after being posted on this service.</p>
+      <p style="font-size:11px;color:var(--color-text-secondary);">Established: October 1, 2023 · Last revised: March 27, 2026 · TAIMATSU Co., Ltd.</p>
+    </div>
+    <label style="display:flex;align-items:center;gap:9px;cursor:pointer;font-size:13px;margin-top:8px;">
+      <input type="checkbox" style="width:16px;height:16px;cursor:pointer;accent-color:var(--red);">
+      I agree to these Terms of Service and Privacy Policy
+    </label>`;
+}
+
+/* ─── Step 5: Review ─── */
+function r5() {
+  document.getElementById('mc').innerHTML = `
+    <div class="sec"><i class="ti ti-clipboard-check" aria-hidden="true"></i>Review & Submit</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px;">
+      <div>
+        <div class="scard">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span style="font-size:11px;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Order Info</span>
+            <button class="eb" onclick="gTo(1)"><i class="ti ti-edit" style="font-size:11px;vertical-align:-1px;" aria-hidden="true"></i>Edit</button>
+          </div>
+          ${stx ? `<div class="row"><span class="l">Source</span><span class="bdg ${psrc === 'square' ? 'gen' : 'ok'}">${psrc === 'square' ? 'Square' : 'Smaregi'}</span></div>` : ''}
+          <div class="row"><span class="l">Transaction ID</span><span style="font-family:var(--font-mono);font-size:11px;">${stx ? stx.id : '—'}</span></div>
+          <div class="row"><span class="l">Store</span><span>Normal Test Store</span></div>
+          <div class="row"><span class="l">Date</span><span>2026/05/24</span></div>
+          <div class="row"><span class="l">Items</span><span>${stx ? stx.items.length : 1}</span></div>
+          <div class="row"><span class="l">Total Paid</span><span style="font-weight:600;color:var(--red);">${stx ? fmt(stx.amount) : '¥0'}</span></div>
+        </div>
+        <div class="scard">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span style="font-size:11px;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Refund Method</span>
+            <button class="eb" onclick="gTo(3)"><i class="ti ti-edit" style="font-size:11px;vertical-align:-1px;" aria-hidden="true"></i>Edit</button>
+          </div>
+          <div class="row"><span class="l">Email</span><span>—</span></div>
+          <div class="row"><span class="l">Verified</span><span style="color:#EF4444;">Pending</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="scard">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span style="font-size:11px;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Passport</span>
+            <button class="eb" onclick="gTo(2)"><i class="ti ti-edit" style="font-size:11px;vertical-align:-1px;" aria-hidden="true"></i>Edit</button>
+          </div>
+          <div class="row"><span class="l">Full Name</span><span>—</span></div>
+          <div class="row"><span class="l">Nationality</span><span>—</span></div>
+          <div class="row"><span class="l">Date of Birth</span><span>—</span></div>
+          <div class="row"><span class="l">Passport No.</span><span>—</span></div>
+          <div class="row"><span class="l">Gender</span><span>—</span></div>
+          <div class="row"><span class="l">Issuing Country</span><span>—</span></div>
+          <div class="row"><span class="l">Expiry</span><span>—</span></div>
+          <div class="row"><span class="l">Visa Type</span><span>—</span></div>
+          <div class="row"><span class="l">Entry Date</span><span>—</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="callout-error">
+      <div style="font-size:12px;font-weight:500;color:#B91C1C;margin-bottom:3px;">
+        <i class="ti ti-alert-circle" style="font-size:13px;vertical-align:-2px;margin-right:4px;" aria-hidden="true"></i>Incomplete application
+      </div>
+      <div style="font-size:12px;color:#DC2626;line-height:1.6;">
+        Some fields are missing or incomplete. Use the Edit buttons above to return to each section and complete all required fields.
+      </div>
+    </div>`;
+}
+
+/* ─── Init ─── */
+const RENDERS = [r0, r1, r2, r3, r4, r5];
+rSB(); RENDERS[0](); uNav();
+</script>
+
+</body>
+</html>
